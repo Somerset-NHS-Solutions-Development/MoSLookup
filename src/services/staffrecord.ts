@@ -1,15 +1,8 @@
-
-//import { Connection, Request, TYPES } from 'tedious'
 import { Service, Inject } from 'typedi';
 import { mssql, ConnectionPool } from 'mssql'
 
 import logger from '../loaders/logger'
 import config from '../config';
-
-
-
-// Attempt to connect and execute queries if connection goes through
-
 
 @Service()
 export default class StaffRecordService {
@@ -22,6 +15,10 @@ export default class StaffRecordService {
 		try {
 			if (!Object.prototype.hasOwnProperty.call(this.pools, name)) {
 				const pool = new this.connection.ConnectionPool(config)
+				pool.on('error', err => {
+					// ... error handler
+					throw new Error(err);
+				})
 				const close = pool.close.bind(pool)
 				pool.close = (...args) => {
 				  delete this.pools[name]
@@ -37,95 +34,150 @@ export default class StaffRecordService {
 	}
 	
 	private async getStaffPersonIDByStaffID(staffID = '123456789777') {
-		console.log('Reading rows from the Table...');
-					
-		const pool = await this.getPool('default', this.dbconfig);
-		const result = await pool.request()
-				.input('staffID', this.connection.VarChar(50), staffID)
-				.query(`SELECT DISTINCT TOP 1 person.[PersonID] 
-				FROM [DWESR].[dbo].[WorkForcePersonAudit] person
-				where EmployeeNumber like '%'+ @staffID +'%' and EfectiveToDate is NULL and person.[WarehouseEndDate] is NULL`)
-		
-		return result['recordset'][0]['PersonID'];
+		logger.debug('Querying by staff ID');
+		try {
+			const pool = await this.getPool('default', this.dbconfig);
+			const result = await pool.request()
+					.input('staffID', this.connection.VarChar(50), staffID)
+					.query(`SELECT DISTINCT TOP 1 person.[PersonID] 
+					FROM [DWESR].[dbo].[WorkForcePersonAudit] person
+					where EmployeeNumber like '%'+ @staffID +'%' and EfectiveToDate is NULL and person.[WarehouseEndDate] is NULL`)
+					.catch(err => { throw new Error(err); });
+			
+			return result['recordset'][0]['PersonID'];
+		} catch(err) {
+			logger.error(err.message);
+			throw new Error(err);
+			return;
+		}
 	}
 	
 	private async getStaffPersonIDBySearch(name = '123456789777', dob = '1920-01-01') {
-		console.log('Reading rows from the Table...');
-		const pool = await this.getPool('default', this.dbconfig);
-		const result = await pool.request()
-				.input('name', this.connection.VarChar(50), name)
-				.input('dob', this.connection.VarChar(50), dob)
-				.query(`SELECT DISTINCT top 1 @personID = person.[PersonID]
-						  FROM [DWESR].[dbo].[WorkForcePersonAudit] person
-						  where (LastName like '%'+name+'%' or FirstName like '%'+@name+'%')
-							and DateOfBirth = @dob
-							and EfectiveToDate is NULL and person.[WarehouseEndDate] is NULL`)
-		
-		return result;
+		logger.debug('Querying by name and DoB');
+		try {
+			const pool = await this.getPool('default', this.dbconfig);
+			const result = await pool.request()
+					.input('name', this.connection.VarChar(50), name)
+					.input('dob', this.connection.VarChar(50), dob)
+					.query(`SELECT DISTINCT person.[PersonID]
+							  FROM [DWESR].[dbo].[WorkForcePersonAudit] person
+							  where (LastName like '%'+@name+'%' or FirstName like '%'+@name+'%')
+								and DateOfBirth = @dob
+								and EfectiveToDate is NULL and person.[WarehouseEndDate] is NULL`)
+			return result['recordset'];
+		} catch(err) {
+			logger.error('Unable to complete search. ' + err.message);
+			throw new Error(err.message);			
+		}
 		
 	}
 	
 	private async getStaffPersonRecord(personID = '123456789777') {
-		console.log('Reading rows from the Table...');
-		const pool = await this.getPool('default', this.dbconfig);
-		const result = await pool.request()
-				.input('personID', this.connection.VarChar(50), personID)
-				.query(`SELECT DISTINCT TOP 1 person.[PersonID]
-						  ,person.[EmployeeNumber]
-						  ,person.[Title]
-						  ,person.[LastName]
-						  ,person.[FirstName]
-						  ,person.[MiddleNames]	  
-						  ,person.[MaidenNames]
-						  ,person.[PreferredName]
-						  --,person.[PreviousLastName]
-						  --,person.[Gender]
-						  ,person.[DateOfBirth]
-						  --,person.[NationalInsuranceNumber]
-						  --,person.[NHSCRSUUID]
-						  ,person.[OfficeE-MailAddress]
-						  ,person.[LastUpdateDate]
-					  FROM [DWESR].[dbo].[WorkForcePersonAudit] person
-					  where person.PersonID = @personID and EfectiveToDate is NULL and person.[WarehouseEndDate] is NULL
-					  order by LastUpdateDate desc`)
-		console.dir(result)
-		return result['recordset'][0];
+		logger.debug('Querying person record');
+		try {
+			const pool = await this.getPool('default', this.dbconfig);
+			const result = await pool.request()
+					.input('personID', this.connection.VarChar(50), personID)
+					.query(`SELECT DISTINCT TOP 1 person.[PersonID]
+							  ,person.[EmployeeNumber]
+							  ,person.[Title]
+							  ,person.[LastName]
+							  ,person.[FirstName]
+							  --,person.[MiddleNames]	  
+							  --,person.[MaidenNames]
+							  ,person.[PreferredName]
+							  --,person.[PreviousLastName]
+							  --,person.[Gender]
+							  ,person.[DateOfBirth]
+							  --,person.[NationalInsuranceNumber]
+							  --,person.[NHSCRSUUID]
+							  ,person.[OfficeE-MailAddress]
+							  ,person.[LastUpdateDate]
+						  FROM [DWESR].[dbo].[WorkForcePersonAudit] person
+						  where person.PersonID = @personID and EfectiveToDate is NULL and person.[WarehouseEndDate] is NULL
+						  order by LastUpdateDate desc`)
+						  .catch(err => { throw new Error(err);});
+			return result['recordset'][0];
+		} catch(err) {
+			logger.error(err);
+			throw new Error(err);
+		}
 		
 	}
 	
 	private async getStaffPersonAssignment(personID = '123456789777') {
-		console.log('Reading rows from the Table...');
-		const pool = await this.getPool('default', this.dbconfig);
-		const result = await pool.request()
-				.input('personID', this.connection.VarChar(50), personID)
-				.query(`SELECT DISTINCT position.PositionNumber
-					  ,assignment.PositionName
-					  ,position.JobStaffGroup
-					  ,position.JobRole
-				  FROM [DWESR].[dbo].[WorkForceAssignmentAudit] assignment 
-				  LEFT OUTER JOIN [DWESR].[dbo].[WorkForcePositionAudit] position on assignment.PositionID = position.PositionID and position.EfectiveToDate is null and position.WarehouseEndDate is null
-				  WHERE assignment.PersonID = @personID and assignment.EffectiveEndDate is null and assignment.WarehouseEndDate is null`)
+		logger.debug('Querying assignments');
+		try {
+			const pool = await this.getPool('default', this.dbconfig);
+			const result = await pool.request()
+					.input('personID', this.connection.VarChar(50), personID)
+					.query(`SELECT DISTINCT position.PositionNumber
+						  ,assignment.PositionName
+						  ,position.JobStaffGroup
+						  ,position.JobRole
+					  FROM [DWESR].[dbo].[WorkForceAssignmentAudit] assignment 
+					  LEFT OUTER JOIN [DWESR].[dbo].[WorkForcePositionAudit] position on assignment.PositionID = position.PositionID and position.EfectiveToDate is null and position.WarehouseEndDate is null
+					  WHERE assignment.PersonID = @personID and assignment.EffectiveEndDate is null and assignment.WarehouseEndDate is null`)
+					  .catch(err => { throw new Error(err);});
+			return result['recordset'];
+		} catch(err) {
+			logger.error(err);
+			throw new Error(err);
+		}
+	}
+	
+	private async processStaffPersonSet(list) : Promise<any> {	
+		const objectsout = list.map(async  (o) => {
+			let personObject : any = await this.getStaffPersonRecord(o.PersonID);
+			personObject['Assignments'] = await this.getStaffPersonAssignment(o.PersonID);			
+			return new Promise((res, rej) => {res(personObject)})
+		});		
+		return Promise.all(objectsout)
+		.then((results) => {
+		  return results;
+		})
 		
-		console.dir(result)
-		return result['recordset'];
 	}
 	
 	
 
 	public async getStaffMemberByID(staffID = '123456789777') {
-		console.log('Building Staff Object');
-		const personID = await this.getStaffPersonIDByStaffID(staffID);
-		// const personRecord = await this.getStaffPersonRecord(personID);
-		//const personAssignments = await this.getStaffPersonAssignment(personID);
+		logger.debug('Building Staff Object');
+		try {
+			const personID = await this.getStaffPersonIDByStaffID(staffID);		
+			const personObject : any = await this.getStaffPersonRecord(personID);
+			personObject['Assignments'] = await this.getStaffPersonAssignment(personID);			
+			return new Promise(function(resolve, reject) {
+				resolve(personObject);
+				
+			}).catch(error => logger.error(error.message));
+		} catch(err) {
+			throw new Error('Could not complete request due to an internal server error');
+		}
 		
-		const personObject : any = await this.getStaffPersonRecord(personID);
-		personObject['Assignments'] = await this.getStaffPersonAssignment(personID);
-		
-		return new Promise(function(resolve, reject) {
-			console.dir(personObject);
-			resolve(personObject);
+	}
+	
+	public async getStaffMemberSearch(name = 'zzzzzzzzzzzzzzz', dob = '1620-01-29') {
+		try {
+			logger.debug('Building Result set');
+			const personIDSet = await this.getStaffPersonIDBySearch(name,dob);
+			let personObjectSet = [];
+			if(personIDSet && personIDSet.length > 0){
+				personObjectSet = await this.processStaffPersonSet(personIDSet);
+			}
 			
-		}).catch(error => logger.error(error.message));
+			return new Promise(function(resolve, reject) {
+				if(personObjectSet){
+				resolve(personObjectSet);
+				} else {
+					reject()
+				}
+			}).catch(err => {
+				logger.error(err.message);
+			});
+		} catch(err) {
+			throw new Error('Could not complete search due to an internal server error');
+		}
 		
 	}
 	

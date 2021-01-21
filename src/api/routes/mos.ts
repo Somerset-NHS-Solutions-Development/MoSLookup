@@ -27,12 +27,12 @@ function sleep(ms) {
 } 
 
 
-usersRouter.get('/:id', asyncMiddleware((req: Request, res: Response) => {
+usersRouter.get('/:id', auth, asyncMiddleware((req: Request, res: Response) => {
 	if(req.params.id) {
 		const mosService = Container.get(StaffRecordService);
 		mosService.getStaffMemberByID(req.params.id).then((result) => {
 			return res.json({ status: 'ok', result: result}).status(200);		
-		});
+		}).catch(err => { return res.status(500).json({error: err.message})});;;
 	} else {
 		return res.status(400).json({error: 'No data'});
 	}
