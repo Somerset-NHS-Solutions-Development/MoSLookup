@@ -1,3 +1,4 @@
+import {VerifyOptions} from 'jsonwebtoken';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 
@@ -16,8 +17,7 @@ const apiKeys = config.xAPI.apiKeys;
 
 async function getSigningKey(token) {	
 	return new Promise((resolve, reject) => {
-		const client = jwksClient({
-			strictSsl: true, // Default value			
+		const client = jwksClient({	
 			jwksUri: (process.env.jwksUri)
 		});
 		const decoded = jwt.decode(token, {complete: true});
@@ -48,7 +48,7 @@ const auth = async (req, res, next) => {
 			const signingKey = await getSigningKey(token);
 			const options = { ignoreExpiration: false, maxAge : '15m', algorithms: ['RS256'] };
 			const claimPath = process.env.AccessClaimPath;
-			jwt.verify(token, signingKey, options, (err, vdecoded) => {
+			jwt.verify(token, signingKey as string, options as VerifyOptions, (err, vdecoded) => {
 					if(err){
 						throw new Error('Unable to verify token');
 					}

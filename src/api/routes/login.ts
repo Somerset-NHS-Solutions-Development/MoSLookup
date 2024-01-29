@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import https from 'https';
 
 const route = Router();
-const request = require("request");
+
 
 export default (app: Router) => {
 	//app.use('/login', route);
@@ -13,23 +14,41 @@ export default (app: Router) => {
 		const options = {
 			method: 'POST',
 			url: (process.env.openIDDirectAccessEnpoint),
-			headers: { 'content-type': 'application/x-www-form-urlencoded' },
-			form: {
-				username, 
-				password, 
-				client_id: (process.env.openIDClientID),
-				grant_type: 'password',
-				client_secret: (process.env.openIDClientSecret)
-			}
+			headers: { 'content-type': 'application/x-www-form-urlencoded' }
+			
 		};
 
-		request(options, (error, response, body) => {
-			if (error) throw new Error(error);
+		const form = {
+			username, 
+			password, 
+			client_id: (process.env.openIDClientID),
+			grant_type: 'password',
+			client_secret: (process.env.openIDClientSecret)
+		}
 
-			const json = (JSON.parse(body));		
-			res.status(200).json(json);
+		// request(options, (error, response, body) => {
+		// 	if (error) throw new Error(error);
 
+		// 	const json = (JSON.parse(body));		
+		// 	res.status(200).json(json);
+
+		// });
+
+		const reqs = https.request(process.env.openIDDirectAccessEnpoint, options, (ress) => {
+			ress.setEncoding('utf8');
+			let data = '';
+			ress.on('data', (chunk) => {
+				data += chunk;
+			});
+			ress.on('end', () => {
+				const json = (JSON.parse(data));		
+				res.status(200).json(json);
+			});
 		});
+	
+		reqs.write(JSON.stringify(form));
+	
+		reqs.end();
 
 	})
   
